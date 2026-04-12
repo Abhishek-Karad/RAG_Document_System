@@ -1,0 +1,26 @@
+# Core dependencies
+fastapi>=0.115.0
+uvicorn>=0.30.0
+pydantic>=2.7.0
+numpy<2.0.0,>=1.21.0
+faiss-cpu>=1.8.0
+requests>=2.31.0
+
+# PDF Processing
+pypdf>=3.0.0
+
+# Force CPU-only PyTorch (much smaller)
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch>=1.11.0
+
+# Sentence transformers with CPU backend
+sentence-transformers>=2.6.0
+
+# File handling
+python-multipart>=0.0.7
+
+# LLM Integration - Google Generative AI (Gemini)
+google-generativeai>=0.3.0
+
+# Environment Configuration
+python-dotenv>=1.0.0
