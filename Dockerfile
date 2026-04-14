@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y \
 # Copy Python requirements
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
 # Copy backend code
 COPY pinecone_manager.py main.py ./
 
