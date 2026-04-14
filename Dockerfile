@@ -1,31 +1,32 @@
-FROM python:3.11-slim
+FROM node:18 as frontend-build
+WORKDIR /frontend
+COPY frontend/package*.json ./
+RUN npm install
+COPY frontend/ ./
+RUN npm run build
 
-# Set working directory
+FROM python:3.13-slim
 WORKDIR /app
 
-# Install system dependencies required for FAISS and other packages
+# Install system deps
 RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    curl \
+    build-essential nginx \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
+# Copy Python requirements
 COPY requirements.txt .
-
-# Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+# Copy backend code
+COPY pinecone_manager.py main.py ./
 
-# Create a non-root user for security (Railway doesn't require this but it's good practice)
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
-USER appuser
+# Copy frontend dist from build stage
+COPY --from=frontend-build /frontend/dist /app/frontend/dist
 
-# Railway automatically sets the PORT environment variable
-# Your app should listen on 0.0.0.0:$PORT
+# Copy nginx config
+COPY frontend/nginx.conf /etc/nginx/sites-available/default
 
-# Command to run the application
-CMD ["python", "start.py"]
+EXPOSE 8000 3000
+
+# Start both services
+CMD ["sh", "-c", "nginx -g 'daemon off;' & uvicorn main:app --host 0.0.0.0 --port 8000"]
