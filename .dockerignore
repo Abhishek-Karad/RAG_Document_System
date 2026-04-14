@@ -22,18 +22,10 @@ env/
 *.md
 docs/
 
-# Frontend node_modules (will be rebuilt)
-frontend/node_modules/
-frontend/dist/
-
 # Uploaded files and indexes
 uploads/
 faiss_index.bin
 faiss_metadata.pkl
-
-# Node cache
-.npm
-.node-gyp
 
 # Test and coverage
 .pytest_cache
@@ -45,6 +37,10 @@ coverage/
 .idea
 *.swp
 *.swo
+
+# Frontend (not needed for backend-only build)
+frontend/
+node_modules/
 .Spotlight-V100
 .Trashes
 ehthumbs.db
