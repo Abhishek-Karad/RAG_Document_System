@@ -1,6 +1,23 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:7999';
+// Determine API base URL based on environment
+const getApiUrl = () => {
+  // If VITE_API_URL is set, use it (for external/separate deployments)
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // If in production, API calls are proxied by nginx at root
+  // No need to specify a base URL, relative paths will work
+  if (import.meta.env.PROD) {
+    return '';
+  }
+  
+  // Development: use localhost backend on port 7999 (or 8000)
+  return 'http://localhost:7999';
+};
+
+const API_BASE_URL = getApiUrl();
 
 const api = axios.create({
   baseURL: API_BASE_URL,

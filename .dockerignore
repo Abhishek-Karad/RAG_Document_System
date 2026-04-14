@@ -13,6 +13,38 @@ env/
 .DS_Store
 .DS_Store?
 ._*
+
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+docs/
+
+# Frontend node_modules (will be rebuilt)
+frontend/node_modules/
+frontend/dist/
+
+# Uploaded files and indexes
+uploads/
+faiss_index.bin
+faiss_metadata.pkl
+
+# Node cache
+.npm
+.node-gyp
+
+# Test and coverage
+.pytest_cache
+.coverage
+coverage/
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
 .Spotlight-V100
 .Trashes
 ehthumbs.db
