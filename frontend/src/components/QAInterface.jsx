@@ -5,10 +5,9 @@ import { apiClient } from '../api';
 const QAInterface = ({ onResultsReceived, isLoading }) => {
   const [question, setQuestion] = useState('');
   const [topK, setTopK] = useState(3);
-  const [threshold, setThreshold] = useState(0.50);
+  const [threshold, setThreshold] = useState(0.65);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState('');
-  const [useLLM, setUseLLM] = useState(true);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -22,25 +21,16 @@ const QAInterface = ({ onResultsReceived, isLoading }) => {
       setSearching(true);
       setError('');
       
-      let response;
-      if (useLLM) {
-        response = await apiClient.askQuestionWithLLM(
-          question,
-          topK,
-          threshold,
-          'gemini-2.5-flash'
-        );
-      } else {
-        response = await apiClient.askQuestion(
-          question,
-          topK,
-          threshold
-        );
-      }
+      const response = await apiClient.askQuestionWithLLM(
+        question,
+        topK,
+        threshold,
+        'gemini-2.5-flash'
+      );
       onResultsReceived(response.data);
     } catch (err) {
       const errorMsg = err.response?.data?.detail || 'Request failed. Please try again.';
-      if (useLLM && errorMsg.includes('Gemini')) {
+      if (errorMsg.includes('Gemini')) {
         setError('Gemini API not configured. Please set GEMINI_API_KEY environment variable.');
       } else {
         setError(errorMsg);
@@ -116,23 +106,6 @@ const QAInterface = ({ onResultsReceived, isLoading }) => {
             </div>
           </div>
         </div>
-
-        <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
-          <input
-            id="useLLM"
-            type="checkbox"
-            checked={useLLM}
-            onChange={(e) => setUseLLM(e.target.checked)}
-            disabled={searching || isLoading}
-            className="rounded border-gray-300 text-blue-600"
-          />
-          <label htmlFor="useLLM" className="flex items-center gap-2 flex-1 cursor-pointer">
-            <Sparkles size={18} className="text-blue-600" />
-            <span className="text-sm font-medium text-gray-700">
-              Use AI to formulate answer
-            </span>
-          </label>
-        </div>
       </form>
 
       {error && (
@@ -168,59 +141,6 @@ export const SearchResults = ({ results, question, isLoading }) => {
             </p>
           </div>
         </div>
-
-        {/* Supporting Chunks */}
-        {results.supporting_chunks && results.supporting_chunks.length > 0 && (
-          <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-              <span>{results.chunk_count}</span>
-              <span>Supporting Document Chunk{results.chunk_count !== 1 ? 's' : ''}</span>
-            </h4>
-            <div className="space-y-3">
-              {results.supporting_chunks.map((chunk, index) => (
-                <div
-                  key={chunk.chunk_id}
-                  className="border border-gray-200 rounded-lg overflow-hidden hover:border-blue-300 transition-colors"
-                >
-                  <button
-                    onClick={() =>
-                      setExpandedChunks((prev) => ({
-                        ...prev,
-                        [chunk.chunk_id]: !prev[chunk.chunk_id],
-                      }))
-                    }
-                    className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors"
-                  >
-                    <div className="text-left flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-semibold text-blue-600">#{index + 1}</span>
-                        <span className="text-sm font-medium text-gray-900">
-                          {chunk.document_name}
-                        </span>
-                      </div>
-                      <div className="text-xs text-gray-600">
-                        Chunk {chunk.chunk_index} • Relevance: {(chunk.similarity_score * 100).toFixed(1)}%
-                      </div>
-                    </div>
-                    {expandedChunks[chunk.chunk_id] ? (
-                      <ChevronUp className="text-gray-400" />
-                    ) : (
-                      <ChevronDown className="text-gray-400" />
-                    )}
-                  </button>
-
-                  {expandedChunks[chunk.chunk_id] && (
-                    <div className="px-4 py-3 bg-white border-t border-gray-200">
-                      <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                        {chunk.text}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     );
   }

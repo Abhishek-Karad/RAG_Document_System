@@ -6,7 +6,7 @@ import logging
 import os
 import shutil
 from dotenv import load_dotenv
-from faiss_manager import FAISSIndexManager, initialize_faiss_system
+from pinecone_manager import PineconeIndexManager, initialize_pinecone_system
 from pathlib import Path
 
 # Load environment variables from .env file
@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="FAISS Document QA API with LLM",
-    description="API for uploading documents and asking questions using FAISS + Gemini LLM",
+    title="Pinecone Document QA API with LLM",
+    description="API for uploading documents and asking questions using Pinecone + Gemini LLM",
     version="3.0.0"
 )
 
@@ -32,7 +32,7 @@ app.add_middleware(
         "http://localhost:8080",
         "http://localhost:8999", 
         "http://localhost:5173",
-        "https://revision-star.lovable.app",
+        
         "*"
     ],
     allow_credentials=True,
@@ -42,8 +42,8 @@ app.add_middleware(
 
 # ---------------------------------------------------------
 
-# Global FAISS manager instance
-faiss_manager: Optional[FAISSIndexManager] = None
+# Global Pinecone manager instance
+faiss_manager: Optional[PineconeIndexManager] = None
 
 # Upload directory
 UPLOAD_DIR = "uploads"
@@ -58,13 +58,13 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", None)
 class QuestionRequest(BaseModel):
     question: str
     top_k: int = 3
-    similarity_threshold: float = 0.50
+    similarity_threshold: float = 0.65
 
 
 class LLMQuestionRequest(BaseModel):
     question: str
     top_k: int = 3
-    similarity_threshold: float = 0.50
+    similarity_threshold: float = 0.65
     model: str = "gemini-2.5-flash"  # Gemini model to use (gemini-pro is deprecated)
 
 
@@ -98,7 +98,6 @@ class DocumentInfo(BaseModel):
     name: str
     chunk_count: int
     total_characters: int
-    uploaded_at: str
 
 
 class DocumentsResponse(BaseModel):
@@ -120,31 +119,25 @@ async def startup_event():
     global faiss_manager
     
     try:
-        logger.info("Initializing FAISS system for documents...")
+        logger.info("Initializing Pinecone system for documents...")
         
-        faiss_manager = initialize_faiss_system()
+        faiss_manager = initialize_pinecone_system()
         
-        # Try to load existing index
-        try:
-            faiss_manager.load_index("faiss_index.bin", "faiss_metadata.pkl")
-            logger.info("Loaded existing FAISS index")
-        except FileNotFoundError:
-            logger.info("No existing index found. System ready for document uploads.")
-        
-        logger.info("FAISS system initialized successfully")
+        logger.info("Pinecone system initialized successfully")
         
         # Configure Gemini API if key is available
         if GEMINI_API_KEY:
             try:
-                faiss_manager.configure_llm(GEMINI_API_KEY)
-                logger.info("Gemini LLM integrated successfully")
+                # Gemini configuration is handled directly in pinecone_manager
+                # Just verify the API key is set
+                logger.info("Gemini LLM will be used for answer generation")
             except Exception as e:
                 logger.warning(f"Could not configure Gemini LLM: {e}. LLM features will be unavailable.")
         else:
             logger.warning("GEMINI_API_KEY not set. LLM features will be unavailable. Set via environment variable.")
     
     except Exception as e:
-        logger.error(f"Failed to initialize FAISS system: {e}")
+        logger.error(f"Failed to initialize Pinecone system: {e}")
         raise
 
 
@@ -157,7 +150,7 @@ async def root():
         embedding_info = f" | {faiss_manager.embedding_dimension}D embeddings"
     
     return {
-        "message": "FAISS Document QA API with LLM",
+        "message": "Pinecone Document QA API with LLM",
         "version": "3.0.0",
         "model": f"{faiss_manager.model_name if faiss_manager else 'loading'}{embedding_info}",
         "endpoints": {
@@ -176,28 +169,27 @@ async def get_stats():
     global faiss_manager
     
     if faiss_manager is None:
-        raise HTTPException(status_code=503, detail="FAISS system not ready")
-    
-    total_chunks = faiss_manager.index.ntotal if faiss_manager.index else 0
+        raise HTTPException(status_code=503, detail="Pinecone system not ready")
     
     return {
         "total_documents": len(faiss_manager.document_metadata),
-        "total_chunks": total_chunks,
+        "total_chunks": sum(doc['chunk_count'] for doc in faiss_manager.document_metadata.values()),
         "model_name": faiss_manager.model_name,
-        "embedding_dimension": faiss_manager.embedding_dimension or 768,
-        "system_status": "ready" if faiss_manager.index else "no_data"
+        "embedding_dimension": faiss_manager.embedding_dimension,
+        "system_status": "ready",
+        "vector_store": "Pinecone"
     }
 
 
 @app.post("/upload", response_model=UploadResponse)
 async def upload_document(file: UploadFile = File(...)):
     """
-    Upload a document (PDF or text file) and add it to the FAISS index.
+    Upload a document (PDF or text file) and add it to the Pinecone index.
     """
     global faiss_manager
     
     if faiss_manager is None or faiss_manager.model is None:
-        raise HTTPException(status_code=503, detail="FAISS system not ready")
+        raise HTTPException(status_code=503, detail="Pinecone system not ready")
     
     try:
         # Validate file type
@@ -217,14 +209,12 @@ async def upload_document(file: UploadFile = File(...)):
         
         logger.info(f"File saved: {file_path}")
         
-        # Add document to FAISS
+        # Add document to Pinecone
         doc_result = faiss_manager.add_document(file_path, file.filename)
         
-        # Rebuild index
-        faiss_manager.build_index()
-        faiss_manager.save_index()
+        # No need to rebuild index - Pinecone handles indexing automatically
         
-        logger.info(f"Document processed and index updated")
+        logger.info(f"Document processed and uploaded to Pinecone")
         
         return UploadResponse(
             document_id=doc_result['document_id'],
@@ -248,7 +238,7 @@ async def get_documents():
     global faiss_manager
     
     if faiss_manager is None:
-        raise HTTPException(status_code=503, detail="FAISS system not ready")
+        raise HTTPException(status_code=503, detail="Pinecone system not ready")
     
     documents = faiss_manager.get_documents()
     documents_info = [
@@ -256,8 +246,7 @@ async def get_documents():
             document_id=doc['document_id'],
             name=doc['name'],
             chunk_count=doc['chunk_count'],
-            total_characters=doc['total_characters'],
-            uploaded_at=doc['uploaded_at']
+            total_characters=doc['total_characters']
         )
         for doc in documents
     ]
@@ -271,19 +260,18 @@ async def get_documents():
 @app.delete("/documents/{document_id}")
 async def delete_document(document_id: str):
     """
-    Delete a document from the index.
+    Delete a document from the Pinecone index.
     """
     global faiss_manager
     
     if faiss_manager is None:
-        raise HTTPException(status_code=503, detail="FAISS system not ready")
+        raise HTTPException(status_code=503, detail="Pinecone system not ready")
     
     try:
         if document_id not in faiss_manager.document_metadata:
             raise HTTPException(status_code=404, detail="Document not found")
         
         faiss_manager.delete_document(document_id)
-        faiss_manager.save_index()
         
         return {"message": f"Document {document_id} deleted successfully"}
     
@@ -299,8 +287,8 @@ async def ask_question(request: QuestionRequest):
     """
     global faiss_manager
     
-    if faiss_manager is None or faiss_manager.index is None:
-        raise HTTPException(status_code=503, detail="FAISS system not ready. Please upload documents first.")
+    if faiss_manager is None:
+        raise HTTPException(status_code=503, detail="Pinecone system not ready. Please upload documents first.")
     
     if not request.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty")
@@ -352,8 +340,8 @@ async def ask_with_llm(request: LLMQuestionRequest):
     """
     global faiss_manager
     
-    if faiss_manager is None or faiss_manager.index is None:
-        raise HTTPException(status_code=503, detail="FAISS system not ready. Please upload documents first.")
+    if faiss_manager is None:
+        raise HTTPException(status_code=503, detail="Pinecone system not ready. Please upload documents first.")
     
     if not GEMINI_API_KEY:
         raise HTTPException(status_code=503, detail="Gemini API key not configured. Set GEMINI_API_KEY environment variable.")

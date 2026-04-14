@@ -35,7 +35,7 @@ class FAISSIndexManager:
     Uses high-dimensional embeddings (768D) and intelligent semantic chunking.
     """
     
-    def __init__(self, model_name: str = "all-MiniLM-L12-v2"):
+    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
         """
         Initialize the FAISS index manager for documents.
         
@@ -92,7 +92,7 @@ class FAISSIndexManager:
             logger.error(f"Error extracting text from PDF: {e}")
             raise
     
-    def chunk_text(self, text: str, chunk_size: int = 700, overlap: int = 150) -> List[str]:
+    def chunk_text(self, text: str, chunk_size: int = 400, overlap: int = 50) -> List[str]:
         """
         Split text into semantically meaningful overlapping chunks.
         Respects paragraph/sentence boundaries for better context preservation.
@@ -224,7 +224,15 @@ class FAISSIndexManager:
         texts = [chunk['text'] for chunk in self.chunks]
         
         # Generate embeddings
-        self.embeddings = self.model.encode(texts)
+        batch_size = 32
+        all_embeddings = []
+
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i:i+batch_size]
+            emb = self.model.encode(batch, show_progress_bar=True)
+            all_embeddings.append(emb)
+
+        self.embeddings = np.vstack(all_embeddings)
         logger.info(f"Created embeddings with shape: {self.embeddings.shape}")
         
         # Build FAISS index
